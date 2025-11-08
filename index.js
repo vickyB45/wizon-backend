@@ -6,26 +6,55 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+app.use(
+  cors({
+    origin:
+      process.env.MODE === "development"
+        ? "http://localhost:5173"
+        : process.env.ORIGIN_CLIENT,
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ---------- ROUTE ----------
-
-// GET /
+// ✅ Root route
 app.get("/", (req, res) => {
-  res.send("Wizon Mail Server is running 🚀");
+  res.send(`
+    <div style="font-family: Arial; padding: 40px; background: #f9f9f9; text-align:center;">
+      <h1 style="color:#222;">🚀 Wizon Mail Server is Live</h1>
+      <p style="color:#555;">Everything is working perfectly. Ready to send emails 💌</p>
+      <hr style="margin:20px 0;"/>
+      <p style="font-size:13px; color:#888;">Environment: ${
+        process.env.MODE || "production"
+      }</p>
+    </div>
+  `);
 });
 
+// ✅ Send Mail route
 app.post("/send-mail", async (req, res) => {
   try {
-    const { firstname, lastname, phone, email, brandname, ads, budget, disc } = req.body;
+    const { firstname, lastname, phone, email, brandname, ads, budget, disc } =
+      req.body;
 
-    if (!firstname || !lastname || !phone || !email || !brandname || !ads || !budget || !disc) {
-      return res.status(400).json({ success: false, msg: "Please fill all the fields" });
+    if (
+      !firstname ||
+      !lastname ||
+      !phone ||
+      !email ||
+      !brandname ||
+      !ads ||
+      !budget ||
+      !disc
+    ) {
+      return res
+        .status(400)
+        .json({ success: false, msg: "Please fill all the fields" });
     }
 
-    // 💌 HTML formatted message
     const htmlMessage = `
       <div style="font-family: Arial, sans-serif; color: #333; background: #f9f9f9; padding: 20px;">
         <h2 style="color: #222; text-align:center;">🚀 New Consultation Request</h2>
@@ -53,14 +82,14 @@ app.post("/send-mail", async (req, res) => {
       port: 465,
       secure: true,
       auth: {
-        user: process.env.EMAIL_USER, 
+        user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
     });
 
     await transporter.sendMail({
       from: `"Wizon Web" <${process.env.EMAIL_USER}>`,
-      to: process.env.TO_EMAIL, 
+      to: process.env.TO_EMAIL,
       subject: "🧾 New Brand Consultation Form Submission",
       html: htmlMessage,
     });
@@ -72,6 +101,6 @@ app.post("/send-mail", async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT, () =>
+app.listen(process.env.PORT || 5000, () =>
   console.log(`🚀 Wizon Mail Server running on port ${process.env.PORT}`)
 );
