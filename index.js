@@ -11,6 +11,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ---------- ROUTE ----------
+
+// GET /
+app.get("/", (req, res) => {
+  res.send("Wizon Mail Server is running 🚀");
+});
+
 app.post("/send-mail", async (req, res) => {
   try {
     const { firstname, lastname, phone, email, brandname, ads, budget, disc } = req.body;
