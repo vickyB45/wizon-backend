@@ -5,10 +5,13 @@ import dotenv from "dotenv";
 import { connectDB } from "./config/db.js";
 import blogRoutes from "./routes/blogRoutes.js";
 import adminRoute from "./routes/adminRoute.js";
+import contactAdminRoutes from "./routes/contactAdminRoutes.js"
+import systemRoutes from "./routes/systemRoute.js";
+
+
 // server.js me ye missing hai:
 import cookieParser from "cookie-parser";
 import contact from "./models/contact.js";
-import contactAdminRoutes from "./routes/contactAdminRoutes.js"
 
 dotenv.config();
 
@@ -35,7 +38,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/blogs", blogRoutes);
 app.use("/api/admin", adminRoute);
 app.use("/api/admin/contacts", contactAdminRoutes);
-
+app.use("/api/admin/system", systemRoutes);
 // ROOT
 app.get("/", (req, res) => {
   res.send(`<h2>🚀 Wizon Mail + Blog Server Running</h2>`);
