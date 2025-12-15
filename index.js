@@ -4,6 +4,11 @@ import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import { connectDB } from "./config/db.js";
 import blogRoutes from "./routes/blogRoutes.js";
+import adminRoute from "./routes/adminRoute.js";
+// server.js me ye missing hai:
+import cookieParser from "cookie-parser";
+import contact from "./models/contact.js";
+import contactAdminRoutes from "./routes/contactAdminRoutes.js"
 
 dotenv.config();
 
@@ -22,23 +27,37 @@ app.use(
   })
 );
 
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ⭐ Blog Routes
 app.use("/api/blogs", blogRoutes);
+app.use("/api/admin", adminRoute);
+app.use("/api/admin/contacts", contactAdminRoutes);
 
 // ROOT
 app.get("/", (req, res) => {
   res.send(`<h2>🚀 Wizon Mail + Blog Server Running</h2>`);
 });
 
-// MAIL
+// MAIL + SAVE CONTACTs
 app.post("/send-mail", async (req, res) => {
   try {
-    const { firstname, lastname, phone, email, brandname, ads, budget, disc } =
-      req.body;
+    const {
+      firstname,
+      lastname,
+      phone,
+      email,
+      brandname,
+      ads, // yes / no
+      budget, // monthly budget
+      disc, // description
+    } = req.body;
 
+    // ---------------------------
+    // 1️⃣ Validation
+    // ---------------------------
     if (
       !firstname ||
       !lastname ||
@@ -49,12 +68,40 @@ app.post("/send-mail", async (req, res) => {
       !budget ||
       !disc
     ) {
-      return res
-        .status(400)
-        .json({ success: false, msg: "Please fill all the fields" });
+      return res.status(400).json({
+        success: false,
+        msg: "Please fill all the fields",
+      });
     }
 
-    const htmlMessage = `...`; // unchanged
+    // ---------------------------
+    // 2️⃣ Save to DB
+    // ---------------------------
+    const contacts = await contact.create({
+      firstname,
+      lastname,
+      phone,
+      email,
+      brandname,
+      metaAds: ads.toLowerCase(),
+      monthlyBudget: budget,
+      description: disc,
+      source: "contacts-form",
+    });
+
+    // ---------------------------
+    // 3️⃣ Send Mail (SMTP)
+    // ---------------------------
+    const htmlMessage = `
+      <h3>New Contacts Form Submission</h3>
+      <p><strong>Name:</strong> ${firstname} ${lastname}</p>
+      <p><strong>Email:</strong> ${email}</p>
+      <p><strong>Phone:</strong> ${phone}</p>
+      <p><strong>Brand:</strong> ${brandname}</p>
+      <p><strong>Meta Ads:</strong> ${ads}</p>
+      <p><strong>Monthly Budget:</strong> ${budget}</p>
+      <p><strong>Description:</strong> ${disc}</p>
+    `;
 
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
@@ -73,10 +120,21 @@ app.post("/send-mail", async (req, res) => {
       html: htmlMessage,
     });
 
-    res.status(200).json({ success: true, msg: "Mail sent successfully ✨" });
+    // ---------------------------
+    // 4️⃣ Success Response
+    // ---------------------------
+    return res.status(200).json({
+      success: true,
+      msg: "Form submitted successfully",
+      contactsId: contacts._id,
+    });
   } catch (error) {
-    console.error("Error sending mail:", error);
-    res.status(500).json({ success: false, msg: "Server error" });
+    console.error("❌ Contacts form error:", error);
+
+    return res.status(500).json({
+      success: false,
+      msg: "Server error while submitting form",
+    });
   }
 });
 

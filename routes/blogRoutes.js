@@ -1,137 +1,113 @@
 import express from "express";
-import Blog from "../models/blog.js"
+import Blog from "../models/blog.js";
+import { adminAuth } from "../middleware/adminAuth.js";
 
 const router = express.Router();
 
 /* =====================================================
-   ➤ CREATE BLOG (POST)
+   ➤ CREATE BLOG (ADMIN ONLY)
    ===================================================== */
-router.post("/", async (req, res) => {
+router.post("/", adminAuth, async (req, res) => {
   try {
     const { title, excerpt, content, tags, featuredImage, status } = req.body;
 
-    // 🔐 Basic validation
     if (!title?.trim() || !excerpt?.trim() || !content?.trim()) {
       return res.status(400).json({
         success: false,
-        msg: "Title, excerpt and content are required fields.",
+        msg: "Title, excerpt and content are required.",
       });
     }
 
-    // Tags formatting (ensure array)
+    // Normalize tags
     let formattedTags = [];
     if (typeof tags === "string") {
-      formattedTags = tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
+      formattedTags = tags.split(",").map(t => t.trim()).filter(Boolean);
     } else if (Array.isArray(tags)) {
-      formattedTags = tags.map((t) => t.trim()).filter(Boolean);
+      formattedTags = tags.map(t => t.trim()).filter(Boolean);
     }
 
-    // Create blog safely
     const blog = await Blog.create({
       title: title.trim(),
       excerpt: excerpt.trim(),
       content,
       tags: formattedTags,
       featuredImage: featuredImage || "",
-      status: status || "Published",
+      status: status || "Published", // Draft / Published
     });
 
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
-      msg: "Blog created successfully.",
+      msg: "Blog created successfully",
       blog,
     });
   } catch (err) {
     console.error("❌ Blog Create Error:", err);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
-      msg: "Internal server error while creating blog.",
+      msg: "Failed to create blog",
     });
   }
 });
 
 /* =====================================================
-   ➤ GET ALL BLOGS (GET)
+   ➤ GET ALL BLOGS (PUBLIC – ONLY PUBLISHED)
    ===================================================== */
-router.get("/", async (req, res) => {
-  try {
-    const blogs = await Blog.find().sort({ createdAt: -1 });
-
-    return res.status(200).json({
-      success: true,
-      count: blogs.length,
-      blogs,
-    });
-  } catch (err) {
-    console.error("❌ Get Blogs Error:", err);
-    return res.status(500).json({
-      success: false,
-      msg: "Failed to fetch blogs.",
-    });
-  }
-});
 
 /* =====================================================
-   ➤ GET SINGLE BLOG (GET)
+   ➤ GET SINGLE BLOG (PUBLIC – ONLY PUBLISHED)
    ===================================================== */
 router.get("/:id", async (req, res) => {
   try {
-    const blog = await Blog.findById(req.params.id);
+    const blog = await Blog.findOne({
+      _id: req.params.id,
+      status: "Published",
+    });
 
     if (!blog) {
       return res.status(404).json({
         success: false,
-        msg: "Blog not found.",
+        msg: "Blog not found",
       });
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       blog,
     });
   } catch (err) {
     console.error("❌ Get Blog Error:", err);
-    return res.status(400).json({
+    res.status(400).json({
       success: false,
-      msg: "Invalid blog ID.",
+      msg: "Invalid blog ID",
     });
   }
 });
 
 /* =====================================================
-   ➤ DELETE BLOG (DELETE)
+   ➤ GET ALL BLOGS (ADMIN – DRAFT + PUBLISHED)
    ===================================================== */
-router.delete("/:id", async (req, res) => {
+router.get("/", adminAuth, async (req, res) => {
   try {
-    const blog = await Blog.findByIdAndDelete(req.params.id);
+    const blogs = await Blog.find().sort({ createdAt: -1 });
 
-    if (!blog) {
-      return res.status(404).json({
-        success: false,
-        msg: "Blog not found.",
-      });
-    }
-
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      msg: "Blog deleted successfully.",
+      count: blogs.length,
+      blogs,
     });
   } catch (err) {
-    console.error("❌ Delete Blog Error:", err);
-    return res.status(500).json({
+    console.error("❌ Admin Get Blogs Error:", err);
+    res.status(500).json({
       success: false,
-      msg: "Failed to delete blog.",
+      msg: "Failed to fetch blogs",
     });
   }
 });
 
 /* =====================================================
-   ➤ UPDATE BLOG (PATCH)
+   ➤ UPDATE BLOG (ADMIN ONLY)
    ===================================================== */
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", adminAuth, async (req, res) => {
   try {
     const allowedFields = [
       "title",
@@ -142,7 +118,6 @@ router.patch("/:id", async (req, res) => {
       "status",
     ];
 
-    // Only allow safe update fields
     const dataToUpdate = {};
     Object.keys(req.body).forEach((key) => {
       if (allowedFields.includes(key)) {
@@ -150,11 +125,17 @@ router.patch("/:id", async (req, res) => {
       }
     });
 
-    // Re-process tags if needed
+    if (dataToUpdate.title) {
+      dataToUpdate.title = dataToUpdate.title.trim();
+    }
+    if (dataToUpdate.excerpt) {
+      dataToUpdate.excerpt = dataToUpdate.excerpt.trim();
+    }
+
     if (typeof dataToUpdate.tags === "string") {
       dataToUpdate.tags = dataToUpdate.tags
         .split(",")
-        .map((t) => t.trim())
+        .map(t => t.trim())
         .filter(Boolean);
     }
 
@@ -167,20 +148,47 @@ router.patch("/:id", async (req, res) => {
     if (!updatedBlog) {
       return res.status(404).json({
         success: false,
-        msg: "Blog not found.",
+        msg: "Blog not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: "Blog updated successfully",
+      blog: updatedBlog,
+    });
+  } catch (err) {
+    console.error("❌ Update Blog Error:", err);
+    res.status(400).json({
+      success: false,
+      msg: "Failed to update blog",
+    });
+  }
+});
+
+/* =====================================================
+   ➤ DELETE BLOG (ADMIN ONLY – SOFT DELETE)
+   ===================================================== */
+router.delete("/:id", adminAuth, async (req, res) => {
+  try {
+    const blog = await Blog.findByIdAndDelete(req.params.id);
+
+    if (!blog) {
+      return res.status(404).json({
+        success: false,
+        msg: "Blog not found",
       });
     }
 
     return res.status(200).json({
       success: true,
-      msg: "Blog updated successfully.",
-      blog: updatedBlog,
+      msg: "Blog deleted permanently",
     });
   } catch (err) {
-    console.error("❌ Update Blog Error:", err);
-    return res.status(400).json({
+    console.error("❌ Delete Blog Error:", err);
+    return res.status(500).json({
       success: false,
-      msg: "Failed to update blog.",
+      msg: "Failed to delete blog",
     });
   }
 });
