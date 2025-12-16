@@ -54,16 +54,14 @@ router.post("/login", async (req, res) => {
     // -----------------------------
     // 4️⃣ Secure cookie
     // -----------------------------
-    res.cookie("admin_token", token, {
-      httpOnly: true,                 // JS access block
-      secure: process.env.NODE_ENV === "production",
-      sameSite:
-        process.env.NODE_ENV === "production"
-          ? "none"
-          : "lax",
-      path: "/",
-      maxAge: 24 * 60 * 60 * 1000,
-    });
+   res.cookie("admin_token", token, {
+  httpOnly: true,
+  secure: true,        // 🔥 ALWAYS true
+  sameSite: "none",    // 🔥 ALWAYS none
+  path: "/",
+  maxAge: 24 * 60 * 60 * 1000,
+});
+
 
     return res.json({
       success: true,
