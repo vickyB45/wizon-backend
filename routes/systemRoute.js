@@ -10,28 +10,49 @@ const router = express.Router();
 ===================================================== */
 router.get("/status", adminAuth, (req, res) => {
   try {
+    /* ================= UPTIME ================= */
     const uptimeSeconds = process.uptime();
 
-    // convert uptime to readable format
     const formatUptime = (seconds) => {
       const days = Math.floor(seconds / (3600 * 24));
       seconds %= 3600 * 24;
       const hours = Math.floor(seconds / 3600);
       seconds %= 3600;
       const minutes = Math.floor(seconds / 60);
-
       return `${days}d ${hours}h ${minutes}m`;
     };
 
+    /* ================= MEMORY ================= */
     const memory = process.memoryUsage();
-    const totalRAM = os.totalmem();
-    const freeRAM = os.freemem();
+    const totalRAM_MB = Math.round(os.totalmem() / 1024 / 1024);
 
+    // ✅ Node.js process memory (REAL metric)
+    const processRAM_MB = Math.round(memory.rss / 1024 / 1024);
+
+    /* ================= HEALTH % ================= */
+    // Health based on Node process usage, not OS free RAM
+    const healthPercent = Math.max(
+      0,
+      Math.min(
+        100,
+        Math.round(100 - (processRAM_MB / totalRAM_MB) * 100)
+      )
+    );
+
+    /* ================= STATUS ================= */
+    let status = "healthy";
+    if (healthPercent < 60) status = "critical";
+    else if (healthPercent < 80) status = "degraded";
+
+    /* ================= RESPONSE ================= */
     res.json({
       success: true,
 
-      // 🟢 BASIC STATUS
-      status: "healthy",
+      // 🟢 STATUS
+      status,
+      healthPercent,
+
+      // 🌍 ENV
       environment: process.env.NODE_ENV || "development",
 
       // ⏱️ UPTIME
@@ -40,16 +61,15 @@ router.get("/status", adminAuth, (req, res) => {
         readable: formatUptime(uptimeSeconds),
       },
 
-      // 🧠 MEMORY
+      // 🧠 MEMORY (Node Process)
       memory: {
-        usedMB: Math.round(memory.rss / 1024 / 1024),
+        processRAM_MB,
         heapUsedMB: Math.round(memory.heapUsed / 1024 / 1024),
         heapTotalMB: Math.round(memory.heapTotal / 1024 / 1024),
-        totalRAM_MB: Math.round(totalRAM / 1024 / 1024),
-        freeRAM_MB: Math.round(freeRAM / 1024 / 1024),
+        totalSystemRAM_MB: totalRAM_MB,
       },
 
-      // ⚙️ SYSTEM INFO (safe)
+      // ⚙️ SYSTEM INFO
       system: {
         platform: process.platform,
         nodeVersion: process.version,
